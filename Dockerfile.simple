@@ -1,0 +1,13 @@
+# Simple n8n Docker customization
+FROM docker.n8n.io/n8nio/n8n:latest
+
+# Add any custom configurations or files here
+# For example, custom certificates
+# COPY custom-certificates/ /opt/custom-certificates/
+
+# Set any additional environment variables
+ENV N8N_RUNNERS_ENABLED=true
+
+# The base image already has everything we need
+USER node
+ENTRYPOINT ["tini", "--", "n8n"]

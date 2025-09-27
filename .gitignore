@@ -1,0 +1,36 @@
+# Environment files
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+
+# Backups
+backups/
+*.sql
+*.tar.gz
+
+# Custom certificates (may contain sensitive data)
+custom-certificates/*.pem
+custom-certificates/*.crt
+custom-certificates/*.key
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
+*.tmp

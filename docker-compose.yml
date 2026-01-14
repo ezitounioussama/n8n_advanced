@@ -18,7 +18,10 @@ services:
 
   # Main n8n service
   n8n:
-    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: n8n-custom:latest
     restart: always
     ports:
       - "${N8N_PORT:-5678}:5678"
@@ -102,7 +105,7 @@ services:
 
   # n8n worker (for queue mode)
   n8n-worker:
-    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION:-latest}
+    image: n8n-custom:latest
     restart: always
     command: worker
     environment:

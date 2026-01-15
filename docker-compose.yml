@@ -1,40 +1,14 @@
-version: "3.8"
-
 services:
-  # Redis for caching and queue management
-  redis:
-    image: redis:7-alpine
-    restart: always
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    networks:
-      - n8n-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Main n8n service
   n8n:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: n8n-custom:latest
+    image: n8nio/n8n:latest
     restart: always
     ports:
       - "${N8N_PORT:-5678}:5678"
     environment:
-      # Database configuration - MongoDB Atlas
-      DB_TYPE: mongodb
-      DB_MONGODB_CONNECTION_URL: ${MONGODB_CONNECTION_URL}
-
-      # Redis configuration
-      QUEUE_BULL_REDIS_HOST: redis
-      QUEUE_BULL_REDIS_PORT: 6379
-      EXECUTIONS_MODE: queue
-
+      # Database configuration - using SQLite (default, no external DB needed)
+      DB_TYPE: sqlite
+      
       # n8n configuration
       N8N_HOST: ${N8N_HOST:-localhost}
       N8N_PORT: 5678
@@ -46,117 +20,40 @@ services:
       N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
       N8N_USER_MANAGEMENT_JWT_SECRET: ${N8N_JWT_SECRET:-}
 
-      # Task runners
-      N8N_RUNNERS_ENABLED: ${N8N_RUNNERS_ENABLED:-true}
-      N8N_RUNNERS_MODE: ${N8N_RUNNERS_MODE:-internal_launcher}
-      N8N_RUNNERS_LAUNCHER_PATH: /usr/local/bin/task-runner-launcher
-      N8N_RUNNERS_LAUNCHER_CONFIG_PATH: /etc/n8n-task-runners.json
-      N8N_RUNNERS_MAX_CONCURRENCY: ${N8N_RUNNERS_MAX_CONCURRENCY:-5}
-      N8N_RUNNERS_TASK_TIMEOUT: ${N8N_RUNNERS_TASK_TIMEOUT:-60}
-      N8N_RUNNERS_HEARTBEAT_INTERVAL: ${N8N_RUNNERS_HEARTBEAT_INTERVAL:-30}
+      # Execution settings
+      EXECUTIONS_MODE: regular
+      N8N_BASIC_AUTH_ACTIVE: ${N8N_BASIC_AUTH_ACTIVE:-false}
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:-}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:-}
 
-      # Logging
-      N8N_LOG_LEVEL: ${N8N_LOG_LEVEL:-info}
-      N8N_LOG_OUTPUT: ${N8N_LOG_OUTPUT:-console}
+      # Performance
+      N8N_CONCURRENCY: ${N8N_CONCURRENCY:-10}
+      N8N_QUEUE_BULL_REDIS_HOST: ${N8N_QUEUE_BULL_REDIS_HOST:-}
+      N8N_QUEUE_BULL_REDIS_PORT: ${N8N_QUEUE_BULL_REDIS_PORT:-}
 
-      # Feature flags
-      N8N_TEMPLATES_ENABLED: ${N8N_TEMPLATES_ENABLED:-true}
-      N8N_METRICS: ${N8N_METRICS:-false}
-      N8N_DIAGNOSTICS_ENABLED: ${N8N_DIAGNOSTICS_ENABLED:-false}
-
-      # File storage
-      N8N_BINARY_DATA_MODE: filesystem
-      N8N_DEFAULT_BINARY_DATA_MODE: filesystem
+      # Data persistence
+      N8N_USER_FOLDER: /home/node/.n8n
 
     volumes:
-      # Main n8n data directory
+      # Persistent storage for workflows, credentials, and executions
       - n8n_data:/home/node/.n8n
-
-      # Custom certificates (if needed)
+      # Optional: Mount custom certificates
       - ./custom-certificates:/opt/custom-certificates:ro
-
-      # Local files for workflows/credentials backup
-      - ./backups:/home/node/backups
-
-      # Additional custom nodes (if you have any)
-      - ./custom-nodes:/home/node/.n8n/custom
-
-      # Logs
-      - ./logs:/home/node/.n8n/logs
-
-      # Binary data storage
-      - n8n_binary_data:/home/node/.n8n/binaryData
 
     networks:
       - n8n-network
-    depends_on:
-      redis:
-        condition: service_healthy
+
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://localhost:5678/healthz || exit 1",
-        ]
+      test: ["CMD", "curl", "-f", "http://localhost:5678/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 40s
 
-  # n8n worker (for queue mode)
-  n8n-worker:
-    image: n8n-custom:latest
-    restart: always
-    command: worker
-    environment:
-      # Database configuration - MongoDB Atlas
-      DB_TYPE: mongodb
-      DB_MONGODB_CONNECTION_URL: ${MONGODB_CONNECTION_URL}
-
-      # Redis configuration
-      QUEUE_BULL_REDIS_HOST: redis
-      QUEUE_BULL_REDIS_PORT: 6379
-      EXECUTIONS_MODE: queue
-
-      # Worker specific
-      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-}
-      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-UTC}
-
-      # Task runners (same as main service)
-      N8N_RUNNERS_ENABLED: ${N8N_RUNNERS_ENABLED:-true}
-      N8N_RUNNERS_MODE: ${N8N_RUNNERS_MODE:-internal_launcher}
-      N8N_RUNNERS_LAUNCHER_PATH: /usr/local/bin/task-runner-launcher
-      N8N_RUNNERS_LAUNCHER_CONFIG_PATH: /etc/n8n-task-runners.json
-      N8N_RUNNERS_MAX_CONCURRENCY: ${N8N_RUNNERS_MAX_CONCURRENCY:-5}
-      N8N_RUNNERS_TASK_TIMEOUT: ${N8N_RUNNERS_TASK_TIMEOUT:-60}
-      N8N_RUNNERS_HEARTBEAT_INTERVAL: ${N8N_RUNNERS_HEARTBEAT_INTERVAL:-30}
-
-      # Logging
-      N8N_LOG_LEVEL: ${N8N_LOG_LEVEL:-info}
-      N8N_LOG_OUTPUT: ${N8N_LOG_OUTPUT:-console}
-
-    volumes:
-      # Share the same data directory as main service
-      - n8n_data:/home/node/.n8n
-      - n8n_binary_data:/home/node/.n8n/binaryData
-      - ./logs:/home/node/.n8n/logs
-
-    networks:
-      - n8n-network
-    depends_on:
-      redis:
-        condition: service_healthy
-    deploy:
-      replicas: ${N8N_WORKER_REPLICAS:-2}
+volumes:
+  n8n_data:
+    driver: local
 
 networks:
   n8n-network:
     driver: bridge
-
-volumes:
-  redis_data:
-    driver: local
-  n8n_data:
-    driver: local
-  n8n_binary_data:
-    driver: local

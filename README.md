@@ -1,296 +1,243 @@
-# n8n Advanced Docker Setup
+# n8n Minimal Docker Setup
 
-This is an advanced n8n Docker setup with task runners, PostgreSQL database, Redis caching, and queue-based execution.
+A clean, minimal Docker setup for n8n workflow automation with persistent data storage.
 
 ## Features
 
-- **Official n8n Docker image** with task runners enabled
-- **MongoDB Atlas** cloud database for production-ready data persistence
-- **Redis** for caching and queue management
-- **Queue-based execution** with separate worker processes
-- **Task runners** for JavaScript code execution
-- **Health checks** for all services
-- **Volume management** for persistent data
-- **Scalable workers** configuration
+- **Minimal setup**: Uses official n8n Docker image with SQLite (no external database required)
+- **Persistent storage**: All workflows, credentials, and executions are saved in Docker volumes
+- **Easy backup/restore**: Built-in scripts for backing up and restoring your data
+- **Production-ready**: Includes health checks and proper container management
+- **Lightweight**: No Redis or external database required by default
 
 ## Quick Start
 
-1. **Set up MongoDB Atlas:**
+### 1. Setup
 
-   - Create account at [MongoDB Atlas](https://cloud.mongodb.com)
-   - Create a new cluster (free tier available)
-   - Create database user with readWrite permissions
-   - Configure network access (0.0.0.0/0 for development)
-   - Get connection string from "Connect your application"
+```bash
+# Clone or navigate to this directory
+cd /home/kirito/Documents/n8n_advanced
 
-2. **Configure environment:**
+# Copy environment file and configure
+cp .env.example .env
 
-   - Copy `.env` file is already created with instructions
-   - Add your MongoDB Atlas connection string to `MONGODB_CONNECTION_URL`
-   - Generate encryption keys for `N8N_ENCRYPTION_KEY` and `N8N_JWT_SECRET`
-   - Adjust other settings as needed
-
-3. **Generate encryption keys (Important for production):**
-
-   ```bash
-   # Generate encryption key
-   openssl rand -base64 32
-
-   # Generate JWT secret
-   openssl rand -base64 32
-   ```
-
-4. **Start the services:**
-
-   ```bash
-   docker-compose up -d
-   ```
-
-5. **Access n8n:**
-   Open your browser and go to `http://localhost:5678`
-
-## MongoDB Atlas Setup Guide
-
-### Step 1: Create MongoDB Atlas Account
-
-1. Go to [MongoDB Atlas](https://cloud.mongodb.com)
-2. Sign up for a free account
-3. Verify your email address
-
-### Step 2: Create a Cluster
-
-1. Click "Build a Database"
-2. Choose "M0 Sandbox" (Free tier)
-3. Select your preferred cloud provider and region
-4. Name your cluster (e.g., "n8n-cluster")
-5. Click "Create Cluster"
-
-### Step 3: Create Database User
-
-1. Go to "Database Access" in the left sidebar
-2. Click "Add New Database User"
-3. Choose "Password" authentication
-4. Set username (e.g., "n8n_user")
-5. Generate a secure password (save it securely!)
-6. Under "Database User Privileges":
-   - Choose "Built-in Role"
-   - Select "Read and write to any database"
-7. Click "Add User"
-
-### Step 4: Configure Network Access
-
-1. Go to "Network Access" in the left sidebar
-2. Click "Add IP Address"
-3. For development: Click "Allow Access from Anywhere" (0.0.0.0/0)
-4. For production: Add specific IP addresses
-5. Click "Confirm"
-
-### Step 5: Get Connection String
-
-1. Go to "Database" in the left sidebar
-2. Click "Connect" on your cluster
-3. Choose "Connect your application"
-4. Select "Node.js" as driver
-5. Copy the connection string
-6. Replace `<password>` with your database user password
-7. Replace `myFirstDatabase` with `n8n`
-
-### Step 6: Update Environment File
-
-Add your connection string to the `.env` file:
-
-```
-MONGODB_CONNECTION_URL=mongodb+srv://n8n_user:your_password@n8n-cluster.abc12.mongodb.net/n8n?retryWrites=true&w=majority
+# Edit .env to set your configuration
+# IMPORTANT: Generate secure keys for production!
+# Generate with: openssl rand -base64 32
+nano .env
 ```
 
-## Environment Variables
+### 2. Start n8n
 
-### Required for Production
+```bash
+# Start n8n in detached mode
+docker compose up -d
 
-- `MONGODB_CONNECTION_URL`: MongoDB Atlas connection string
-- `N8N_ENCRYPTION_KEY`: 32-character base64 key for data encryption
-- `N8N_JWT_SECRET`: 32-character base64 key for JWT tokens
+# View logs
+docker compose logs -f
+```
 
-### Optional Configuration
+### 3. Access n8n
+
+Open your browser and go to: `http://localhost:5678`
+
+## Configuration
+
+### Environment Variables
+
+Edit the `.env` file to configure n8n:
 
 - `N8N_HOST`: Hostname for n8n (default: localhost)
 - `N8N_PORT`: Port for n8n (default: 5678)
-- `N8N_PROTOCOL`: Protocol (http/https, default: http)
-- `WEBHOOK_URL`: URL for webhooks (default: http://localhost:5678)
+- `N8N_PROTOCOL`: Protocol (http or https)
 - `GENERIC_TIMEZONE`: Timezone (default: UTC)
-- `N8N_WORKER_REPLICAS`: Number of worker instances (default: 2)
+- `N8N_ENCRYPTION_KEY`: Encryption key for sensitive data (generate with `openssl rand -base64 32`)
+- `N8N_JWT_SECRET`: JWT secret for authentication (generate with `openssl rand -base64 32`)
+- `N8N_BASIC_AUTH_ACTIVE`: Enable basic authentication (true/false)
+- `N8N_BASIC_AUTH_USER`: Username for basic auth
+- `N8N_BASIC_AUTH_PASSWORD`: Password for basic auth
+- `N8N_CONCURRENCY`: Maximum concurrent executions (default: 10)
 
-### Task Runner Configuration
+### Optional: Redis for Queue Mode
 
-- `N8N_RUNNERS_ENABLED`: Enable task runners (default: true)
-- `N8N_RUNNERS_MAX_CONCURRENCY`: Max concurrent tasks (default: 5)
-- `N8N_RUNNERS_TASK_TIMEOUT`: Task timeout in seconds (default: 60)
+For scaling and queue-based execution, add Redis:
 
-## Services
+```yaml
+# Add to docker-compose.yml
+redis:
+  image: redis:7-alpine
+  restart: always
+  command: redis-server --appendonly yes
+  volumes:
+    - redis_data:/data
+  networks:
+    - n8n-network
 
-### n8n (Main Service)
-
-- **Port:** 5678
-- **Purpose:** Main n8n web interface and API
-- **Dependencies:** PostgreSQL, Redis
-
-### n8n-worker
-
-- **Purpose:** Executes workflows in queue mode
-- **Scaling:** Configured via `N8N_WORKER_REPLICAS`
-- **Dependencies:** MongoDB Atlas, Redis
-
-### MongoDB Atlas
-
-- **Purpose:** Cloud-hosted primary database for n8n data
-- **Managed:** Fully managed by MongoDB Atlas
-- **Scaling:** Automatic scaling available
-
-### redis
-
-- **Port:** 6379 (internal)
-- **Purpose:** Queue management and caching
-- **Volume:** `redis_data`
-
-## Volumes
-
-- `n8n_data`: Main n8n application data
-- `n8n_binary_data`: Binary files uploaded to workflows
-- `redis_data`: Redis persistence files
-
-Note: Database is hosted on MongoDB Atlas, so no local database volume needed.
-
-## Directory Structure
-
-```
-├── docker-compose.yml     # Main compose file
-├── Dockerfile.old         # Original custom build file (reference only)
-├── Dockerfile.simple      # Simple customization example
-├── docker-entrypoint.sh   # Container entry point (reference)
-├── n8n-task-runners.json  # Task runner configuration (reference)
-├── .env                   # Environment configuration
-├── .env.example           # Environment template
-├── custom-certificates/   # Custom SSL certificates
-├── backups/               # Workflow/credential backups
-├── logs/                  # Application logs
-└── custom-nodes/          # Custom n8n nodes
+# Update n8n service environment
+environment:
+  # ... other settings
+  N8N_QUEUE_BULL_REDIS_HOST: redis
+  N8N_QUEUE_BULL_REDIS_PORT: 6379
+  EXECUTIONS_MODE: queue
 ```
 
-**Note:** This setup now uses the official n8n Docker image (`docker.n8n.io/n8nio/n8n`) instead of building from source. The original `Dockerfile` expected pre-compiled n8n source code and has been moved to `Dockerfile.old` for reference.
+### Optional: MongoDB for External Database
+
+For external database (instead of SQLite):
+
+```yaml
+# Add to docker-compose.yml
+mongodb:
+  image: mongo:7
+  restart: always
+  volumes:
+    - mongodb_data:/data/db
+  networks:
+    - n8n-network
+
+# Update n8n service environment
+environment:
+  # ... other settings
+  DB_TYPE: mongodb
+  DB_MONGODB_CONNECTION_URL: ${MONGODB_CONNECTION_URL}
+```
+
+## Data Persistence
+
+All n8n data is stored in a Docker volume named `n8n_data`:
+
+- Workflows
+- Credentials
+- Executions
+- Settings
+- Custom nodes (if installed)
+
+### Volume Location
+
+To find where Docker stores the volume data:
+
+```bash
+docker volume inspect n8n_advanced_n8n_data
+```
+
+## Backup and Restore
+
+### Backup
+
+Create a backup of all n8n data:
+
+```bash
+./scripts/backup.sh
+```
+
+This creates a `.tar.gz` file in the `backups/` directory with a timestamp.
+
+### Restore
+
+Restore from a backup:
+
+```bash
+./scripts/restore.sh ./backups/n8n_backup_YYYYMMDD_HHMMSS.tar.gz
+```
+
+**Note**: The restore script will stop n8n, overwrite existing data, and restart n8n.
+
+### Automated Backups
+
+For automated backups, add a cron job:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add daily backup at 2 AM
+0 2 * * * cd /home/kirito/Documents/n8n_advanced && ./scripts/backup.sh >> /var/log/n8n-backup.log 2>&1
+```
 
 ## Management Commands
 
-### Start services
-
 ```bash
-docker-compose up -d
+# Start n8n
+docker compose up -d
+
+# Stop n8n
+docker compose down
+
+# View logs
+docker compose logs -f
+
+# Restart n8n
+docker compose restart
+
+# Update to latest n8n version
+docker compose pull
+docker compose up -d
+
+# Check container status
+docker compose ps
+
+# View n8n version
+docker compose exec n8n n8n --version
 ```
 
-### Stop services
+## Security Best Practices
 
-```bash
-docker-compose down
-```
-
-### View logs
-
-```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f n8n
-docker-compose logs -f n8n-worker
-```
-
-### Scale workers
-
-```bash
-docker-compose up -d --scale n8n-worker=4
-```
-
-### Backup data
-
-```bash
-# Backup n8n data
-docker run --rm -v n8n_advanced_n8n_data:/data -v $(pwd)/backups:/backup alpine tar czf /backup/n8n_data_backup.tar.gz -C /data .
-
-# MongoDB Atlas backups are handled automatically by Atlas
-# You can configure automated backups in the Atlas dashboard
-# Manual backups can be created from Atlas UI or using mongodump with connection string
-```
-
-### Restore data
-
-```bash
-# Restore n8n data
-docker run --rm -v n8n_advanced_n8n_data:/data -v $(pwd)/backups:/backup alpine tar xzf /backup/n8n_data_backup.tar.gz -C /data
-
-# MongoDB Atlas restores can be done from Atlas dashboard
-# Point-in-time recovery available with Atlas clusters
-```
-
-## Security Considerations
-
-1. **Change default passwords** in the `.env` file
-2. **Generate secure encryption keys** using OpenSSL
-3. **Use HTTPS** in production by setting `N8N_PROTOCOL=https`
-4. **Limit network access** using Docker networks
-5. **Regular backups** of database and n8n data
-6. **Update base images** regularly for security patches
+1. **Generate secure keys**: Always generate `N8N_ENCRYPTION_KEY` and `N8N_JWT_SECRET` using `openssl rand -base64 32`
+2. **Use HTTPS**: Configure n8n to use HTTPS in production
+3. **Enable authentication**: Use basic auth or user management
+4. **Restrict access**: Use firewall rules to restrict access to n8n
+5. **Regular backups**: Set up automated backups
+6. **Keep updated**: Regularly update to the latest n8n version
 
 ## Troubleshooting
 
-### Check service health
+### n8n won't start
 
 ```bash
-docker-compose ps
+# Check logs
+docker compose logs n8n
+
+# Check if port is already in use
+netstat -tulpn | grep 5678
+
+# Try starting with more verbose logging
+docker compose run --rm n8n n8n start --verbose
 ```
 
-### Check specific service logs
+### Permission issues
+
+If you encounter permission issues:
 
 ```bash
-docker-compose logs n8n
-docker-compose logs n8n-worker
-docker-compose logs redis
+# Fix volume permissions
+docker run --rm -v n8n_advanced_n8n_data:/data alpine:latest sh -c "chmod -R 755 /data"
 ```
 
-### Pull latest images and restart
+### Out of disk space
 
 ```bash
-docker-compose pull
-docker-compose up -d
+# Clean up unused Docker resources
+docker system prune -a
+
+# Remove old backups (keep last 5)
+ls -t ./backups/n8n_backup_*.tar.gz | tail -n +6 | xargs rm -f
 ```
 
-### Reset everything (WARNING: Data loss)
+## Migration from Previous Setup
 
-```bash
-docker-compose down -v
-docker-compose up -d
-```
+If you're migrating from a previous n8n setup:
 
-### Common Issues
+1. **Stop old n8n**: `docker compose -f old-docker-compose.yml down`
+2. **Backup old data**: Use the old setup's backup method
+3. **Start new n8n**: `docker compose up -d`
+4. **Restore data**: `./scripts/restore.sh <backup-file>`
 
-**Error: "COPY ./compiled /app/": not found**
+## Resources
 
-- This happens when using the old Dockerfile that expects compiled source code
-- Solution: The docker-compose.yml has been updated to use the official n8n image
-- Make sure you're using the latest docker-compose.yml from this setup
+- [n8n Documentation](https://docs.n8n.io/)
+- [n8n Community Forum](https://community.n8n.io/)
+- [n8n GitHub](https://github.com/n8n-io/n8n)
 
-**MongoDB Connection Issues**
+## License
 
-- Verify your MongoDB Atlas connection string in the `.env` file
-- Check that your IP address is whitelisted in MongoDB Atlas Network Access
-- Ensure the database user has proper permissions (readWrite role)
-
-## Production Deployment
-
-For production deployment, consider:
-
-1. **Use external databases** instead of containerized ones
-2. **Set up SSL/TLS** with proper certificates
-3. **Configure monitoring** and alerting
-4. **Set up log aggregation**
-5. **Use Docker Swarm or Kubernetes** for orchestration
-6. **Regular security updates** and patches
-7. **Network security** with firewalls and VPNs
+n8n is available under the Sustainable Use License. See the [n8n license](https://github.com/n8n-io/n8n/blob/master/LICENSE.md) for details.
